@@ -5,6 +5,12 @@
   <title>srcset 图片页面</title>
 </head>
 <body>
-  <img srcset="https://picsum.photos/id/1015/800/400" alt="srcset 图片" />
+  <img
+  srcset="https://picsum.photos/id/1015/400/200.jpg 400w,
+          https://picsum.photos/id/1015/800/400.jpg 800w,
+          https://picsum.photos/id/1015/1600/800.jpg 1600w"
+  sizes="(max-width: 600px) 400px, (max-width: 1200px) 800px, 1600px"
+  alt="srcset 图片"
+/>
 </body>
 </html>
