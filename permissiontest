@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>CEF 权限分步测试</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; }
+  button { margin: 4px; padding: 6px 12px; }
+  .row { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
+  .panel {
+    border: 1px solid #ccc; border-radius: 6px; padding: 10px;
+    min-width: 260px;
+  }
+  .panel h3 { margin: 0 0 8px; font-size: 14px; }
+  .status { font-weight: bold; }
+  .ok   { color: #2e7d32; }
+  .fail { color: #c62828; }
+  .idle { color: #888; }
+  #vol-bar {
+    width: 240px; height: 14px; background: #eee; border-radius: 7px; overflow: hidden;
+  }
+  #vol-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #4caf50, #ffeb3b, #f44336);
+    transition: width 60ms linear;
+  }
+  #cam-video {
+    width: 240px; height: 180px; background: #000; border-radius: 4px;
+  }
+  #log {
+    background:#f4f4f4; padding:10px; height:240px; overflow:auto;
+    font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+  <h2>CEF 权限分步测试</h2>
+  <p>按顺序点：先「① 只申请麦克风」→ 再「② 只申请摄像头」</p>
+
+  <div>
+    <button onclick="req({audio:true},'①麦克风')">① 只申请麦克风</button>
+    <button onclick="req({video:true},'②摄像头')">② 只申请摄像头</button>
+    <button onclick="req({audio:true,video:true},'麦+摄')">同时申请 麦+摄（对照）</button>
+    <button onclick="stopAll()">停止所有流</button>
+    <button onclick="location.reload()">刷新页面（测 reload 路径）</button>
+  </div>
+
+  <div class="row">
+    <div class="panel">
+      <h3>麦克风</h3>
+      <div>状态：<span id="mic-status" class="status idle">未申请</span></div>
+      <div style="margin-top:6px">实时音量：</div>
+      <div id="vol-bar"><div id="vol-fill"></div></div>
+      <div id="mic-detail" style="margin-top:6px;font-size:12px;color:#555"></div>
+    </div>
+
+    <div class="panel">
+      <h3>摄像头</h3>
+      <div>状态：<span id="cam-status" class="status idle">未申请</span></div>
+      <video id="cam-video" autoplay playsinline muted style="margin-top:6px"></video>
+      <div id="cam-detail" style="margin-top:6px;font-size:12px;color:#555"></div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:16px">日志</h3>
+  <pre id="log"></pre>
+
+<script>
+  let micStream = null;
+  let camStream = null;
+  let audioCtx = null;
+  let analyser = null;
+  let rafId = null;
+
+  const $ = id => document.getElementById(id);
+  function setStatus(el, text, cls) {
+    el.textContent = text;
+    el.className = 'status ' + cls;
+  }
+  function logLine(msg) {
+    const t = new Date().toLocaleTimeString();
+    $('log').textContent += `[${t}] ${msg}\n`;
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+
+  function attachAudio(stream) {
+    stopAudioMeter();
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      src.connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        analyser.getByteTimeDomainData(buf);
+        // 计算 RMS
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / buf.length);
+        const pct = Math.min(100, Math.round(rms * 300)); // 放大让小声也能看见
+        $('vol-fill').style.width = pct + '%';
+        rafId = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (e) {
+      logLine('音量分析创建失败：' + e.message);
+    }
+  }
+
+  function stopAudioMeter() {
+    if (rafId) cancelAnimationFrame(rafId), rafId = null;
+    if (audioCtx) { try { audioCtx.close(); } catch(_){} audioCtx = null; }
+    analyser = null;
+    $('vol-fill').style.width = '0%';
+  }
+
+  function attachVideo(stream) {
+    const v = $('cam-video');
+    v.srcObject = stream;
+  }
+  function detachVideo() {
+    const v = $('cam-video');
+    if (v.srcObject) {
+      v.srcObject = null;
+    }
+  }
+
+  function stopMic() {
+    if (micStream) {
+      micStream.getTracks().forEach(t => t.stop());
+      micStream = null;
+    }
+    stopAudioMeter();
+    setStatus($('mic-status'), '已停止', 'idle');
+    $('mic-detail').textContent = '';
+  }
+  function stopCam() {
+    if (camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+    }
+    detachVideo();
+    setStatus($('cam-status'), '已停止', 'idle');
+    $('cam-detail').textContent = '';
+  }
+  function stopAll() {
+    stopMic(); stopCam();
+    logLine('已停止所有流');
+  }
+
+  function describeTrack(t) {
+    const s = t.getSettings ? t.getSettings() : {};
+    const label = t.label || '(no label)';
+    if (t.kind === 'audio') {
+      return `audio | ${label} | sampleRate=${s.sampleRate||'-'} ch=${s.channelCount||'-'}`;
+    } else {
+      return `video | ${label} | ${s.width||'-'}x${s.height||'-'}@${s.frameRate||'-'}fps`;
+    }
+  }
+
+  async function req(c, tag) {
+    logLine(`${tag} request ${JSON.stringify(c)}`);
+    if (c.audio) setStatus($('mic-status'), '申请中…', 'idle');
+    if (c.video) setStatus($('cam-status'), '申请中…', 'idle');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(c);
+      const tracks = stream.getTracks();
+      logLine(`${tag} → OK，tracks:`);
+      tracks.forEach(t => logLine('   - ' + describeTrack(t)));
+
+      // 处理音频
+      const audioTrack = tracks.find(t => t.kind === 'audio');
+      if (audioTrack) {
+        // 旧的 mic 流先停
+        if (micStream) micStream.getTracks().forEach(t => t.stop());
+        // 用一个新的 stream 仅承载 audio
+        micStream = new MediaStream([audioTrack]);
+        attachAudio(micStream);
+        setStatus($('mic-status'), '✅ 已获取，请对麦克风说话', 'ok');
+        $('mic-detail').textContent = describeTrack(audioTrack);
+      }
+
+      // 处理视频
+      const videoTrack = tracks.find(t => t.kind === 'video');
+      if (videoTrack) {
+        if (camStream) camStream.getTracks().forEach(t => t.stop());
+        camStream = new MediaStream([videoTrack]);
+        attachVideo(camStream);
+        setStatus($('cam-status'), '✅ 已获取，下方应有画面', 'ok');
+        $('cam-detail').textContent = describeTrack(videoTrack);
+      }
+
+      // 如果本次没申请的那种轨道，提示一下
+      if (c.audio && !audioTrack) {
+        setStatus($('mic-status'), '⚠ 未拿到 audio 轨道', 'fail');
+      }
+      if (c.video && !videoTrack) {
+        setStatus($('cam-status'), '⚠ 未拿到 video 轨道', 'fail');
+      }
+    } catch (e) {
+      logLine(`${tag} → FAIL ${e.name}: ${e.message}`);
+      if (c.audio) {
+        setStatus($('mic-status'), '❌ 失败 ' + e.name, 'fail');
+        $('mic-detail').textContent = e.message;
+      }
+      if (c.video) {
+        setStatus($('cam-status'), '❌ 失败 ' + e.name, 'fail');
+        $('cam-detail').textContent = e.message;
+      }
+    }
+  }
+</script>
+</body>
+</html>
