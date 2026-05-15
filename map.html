@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>地图渲染测试</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  body{margin:0;font-family:Arial;}
+  #bar{padding:8px 12px;background:#222;color:#fff;font-size:13px;}
+  #bar button{margin-right:6px;}
+  #map{position:absolute;top:42px;left:0;right:0;bottom:0;}
+</style>
+</head>
+<body>
+<div id="bar">
+  地图测试 ·
+  <button onclick="setLayer('osm')">OSM</button>
+  <button onclick="setLayer('carto')">Carto Light</button>
+  <button onclick="setLayer('cartoDark')">Carto Dark</button>
+  <button onclick="setLayer('esri')">Esri 卫星</button>
+  · <button onclick="autoFly()">自动平移缩放压力测试</button>
+  · <button onclick="addMarkers(500)">+500 marker</button>
+  · <button onclick="clearMarkers()">清空 marker</button>
+</div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const layers = {
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OSM'}),
+  carto: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© Carto'}),
+  cartoDark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© Carto'}),
+  esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'})
+};
+const map = L.map('map',{preferCanvas:false}).setView([39.9042,116.4074], 12);
+let cur = layers.osm.addTo(map);
+function setLayer(k){ map.removeLayer(cur); cur = layers[k].addTo(map); }
+
+const markers=[];
+function addMarkers(n){
+  const b = map.getBounds();
+  for(let i=0;i<n;i++){
+    const lat = b.getSouth()+Math.random()*(b.getNorth()-b.getSouth());
+    const lng = b.getWest()+Math.random()*(b.getEast()-b.getWest());
+    markers.push(L.circleMarker([lat,lng],{radius:4,color:'#e33'}).addTo(map));
+  }
+}
+function clearMarkers(){ markers.forEach(m=>map.removeLayer(m)); markers.length=0; }
+
+let flying=false;
+function autoFly(){
+  if(flying) return; flying=true;
+  const points=[
+    [39.9042,116.4074,12],[31.2304,121.4737,12],[22.5431,114.0579,12],
+    [30.5728,104.0668,12],[23.1291,113.2644,13],[34.3416,108.9398,12],
+    [40.7128,-74.0060,12],[35.6762,139.6503,12],[51.5074,-0.1278,12]
+  ];
+  let i=0;
+  const t=setInterval(()=>{
+    const p=points[i++ % points.length];
+    map.flyTo([p[0],p[1]], p[2], {duration:1.2});
+    if(i>20){ clearInterval(t); flying=false; }
+  }, 1500);
+}
+</script>
+</body>
+</html>
