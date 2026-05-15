@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>CSS3D / 海量 DOM 动画测试</title>
+<style>
+  body{margin:0;background:#0a0d12;color:#fff;font-family:Arial;overflow:hidden;}
+  #info{position:fixed;left:10px;top:10px;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:6px;font-size:13px;z-index:10;}
+  .stage{position:fixed;inset:0;perspective:800px;}
+  .card{
+    position:absolute;width:80px;height:110px;left:50%;top:50%;
+    margin:-55px 0 0 -40px;border-radius:8px;
+    background:linear-gradient(135deg,#3a8dff,#a052ff);
+    box-shadow:0 6px 18px rgba(0,0,0,.4);
+    will-change:transform,opacity;
+    backface-visibility:hidden;
+  }
+</style>
+</head>
+<body>
+<div id="info">CSS3D · FPS: <span id="fps">--</span> · 节点数: <span id="cnt">0</span>
+  · <button onclick="add(100)">+100</button>
+  · <button onclick="add(-100)">-100</button>
+</div>
+<div class="stage" id="stage"></div>
+<script>
+const stage=document.getElementById('stage');
+const items=[];
+function add(n){
+  if(n>0){
+    for(let i=0;i<n;i++){
+      const d=document.createElement('div');
+      d.className='card';
+      stage.appendChild(d);
+      items.push({el:d,
+        rx:Math.random()*360,ry:Math.random()*360,
+        sx:.3+Math.random()*1.2, sy:.3+Math.random()*1.2,
+        r:120+Math.random()*260,
+        a:Math.random()*Math.PI*2});
+    }
+  }else{
+    for(let i=0;i<-n && items.length;i++){
+      const x=items.pop(); stage.removeChild(x.el);
+    }
+  }
+  document.getElementById('cnt').textContent=items.length;
+}
+add(500);
+
+let last=performance.now(),frames=0,t=0;
+function tick(){
+  requestAnimationFrame(tick);
+  t+=0.01;
+  for(const it of items){
+    it.rx+=it.sx; it.ry+=it.sy;
+    const x = Math.cos(it.a+t)*it.r;
+    const y = Math.sin(it.a+t*1.2)*it.r*0.6;
+    const z = Math.sin(it.a+t)*200;
+    it.el.style.transform =
+      `translate3d(${x}px,${y}px,${z}px) rotateX(${it.rx}deg) rotateY(${it.ry}deg)`;
+  }
+  frames++;
+  const now=performance.now();
+  if(now-last>=500){
+    document.getElementById('fps').textContent=(frames*1000/(now-last)).toFixed(0);
+    frames=0;last=now;
+  }
+}
+tick();
+</script>
+</body>
+</html>
