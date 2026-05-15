@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>视频播放测试（多路 / 硬解）</title>
+<style>
+  body{margin:0;background:#0c0f14;color:#fff;font-family:Arial;padding:12px;}
+  h2{margin:0 0 10px;}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  video{width:100%;background:#000;border-radius:6px;}
+  .item small{color:#9ab;}
+  .info{background:#1a2030;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:13px;}
+  button{margin-right:8px;}
+</style>
+</head>
+<body>
+<h2>视频播放 / 硬件解码测试</h2>
+<div class="info">
+  说明：观察是否流畅、是否花屏 / 黑屏、CPU 占用是否明显升高（升高过多说明走了软解）。
+  可在 <code>chrome://media-internals</code> 查看实际解码器。
+  <div style="margin-top:6px;">
+    <button onclick="playAll()">▶ 全部播放</button>
+    <button onclick="pauseAll()">⏸ 全部暂停</button>
+    <button onclick="muteAll(true)">静音</button>
+    <button onclick="muteAll(false)">取消静音</button>
+  </div>
+</div>
+<div class="grid">
+  <div class="item">
+    <small>① MP4 / H.264（兼容性最好）</small>
+    <video controls preload="auto" loop crossorigin="anonymous"
+      src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
+  </div>
+  <div class="item">
+    <small>② MP4 / H.264 高码率</small>
+    <video controls preload="auto" loop crossorigin="anonymous"
+      src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4"></video>
+  </div>
+  <div class="item">
+    <small>③ WebM / VP9（GPU 解码常见）</small>
+    <video controls preload="auto" loop crossorigin="anonymous"
+      src="https://test-videos.co.uk/vids/bigbuckbunny/webm/vp9/720/Big_Buck_Bunny_720_10s_1MB.webm"></video>
+  </div>
+  <div class="item">
+    <small>④ MP4 1080p 长片</small>
+    <video controls preload="auto" loop crossorigin="anonymous"
+      src="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"></video>
+  </div>
+</div>
+<script>
+function $$(){return document.querySelectorAll('video');}
+function playAll(){ $$().forEach(v=>v.play().catch(()=>{})); }
+function pauseAll(){ $$().forEach(v=>v.pause()); }
+function muteAll(b){ $$().forEach(v=>v.muted=b); }
+muteAll(true);
+</script>
+</body>
+</html>
