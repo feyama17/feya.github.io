@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>CEF 内核 GPU 测试入口</title>
+<style>
+  body{font-family:"Microsoft YaHei",Arial,sans-serif;margin:0;padding:24px;background:#f6f8fb;color:#222;}
+  h1{margin:0 0 8px;}
+  .tip{color:#666;margin-bottom:16px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+  .card{background:#fff;border:1px solid #e4e8ef;border-radius:10px;padding:16px;transition:.2s;}
+  .card:hover{box-shadow:0 6px 18px rgba(0,0,0,.08);transform:translateY(-2px);}
+  .card a{font-size:16px;font-weight:600;color:#2b6cff;text-decoration:none;}
+  .card p{margin:8px 0 0;color:#666;font-size:13px;line-height:1.5;}
+  .check{background:#fff;border:1px solid #e4e8ef;border-radius:10px;padding:16px;margin-bottom:18px;}
+  .check h3{margin:0 0 8px;}
+  .check table{width:100%;border-collapse:collapse;font-size:13px;}
+  .check td{padding:4px 8px;border-bottom:1px dashed #eee;}
+  .check td:first-child{color:#666;width:200px;}
+  .ok{color:#0a8f33;font-weight:600;}
+  .bad{color:#d93025;font-weight:600;}
+  code{background:#f1f3f6;padding:2px 6px;border-radius:4px;}
+</style>
+</head>
+<body>
+<h1>CEF 内核 GPU 加速测试入口</h1>
+<p class="tip">企业微信浏览器打开本页面，先看下方"GPU 自检"，再依次点击各测试用例。建议测试 GPU 开启 / 关闭 两种情况对比。</p>
+
+<div class="check">
+  <h3>① GPU 自检</h3>
+  <table id="gpuInfo"><tbody></tbody></table>
+  <p style="color:#888;font-size:12px;margin-top:8px;">
+    在 CEF 内嵌浏览器中也可以直接访问：<code>chrome://gpu</code> 查看完整 GPU 报告（如内核未禁用该页）。
+  </p>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <a href="./webgl.html" target="_blank">① WebGL 复杂 3D 图形</a>
+    <p>WebGL2 + 1 万粒子 + 旋转立方体阵列，验证 3D 渲染、shader、纹理。</p>
+  </div>
+  <div class="card">
+    <a href="./canvas2d.html" target="_blank">② Canvas2D 高负载绘制</a>
+    <p>5000 个移动小球 + 渐变 + 阴影 + 路径，验证 2D 加速。</p>
+  </div>
+  <div class="card">
+    <a href="./video.html" target="_blank">③ 视频播放（多路 / 硬解）</a>
+    <p>H.264 / WebM 多路同播，4K 大码率，验证视频解码与合成。</p>
+  </div>
+  <div class="card">
+    <a href="./map.html" target="_blank">④ 地图渲染</a>
+    <p>Leaflet + OSM（无需 Key），切换瓦片、缩放、平移压力。</p>
+  </div>
+  <div class="card">
+    <a href="./css3d.html" target="_blank">⑤ CSS3D / 海量 DOM 动画</a>
+    <p>500 个 DOM 节点 transform3d 动画，验证合成层与 GPU 提升。</p>
+  </div>
+  <div class="card">
+    <a href="./stress.html" target="_blank">⑥ 综合压力（同页多场景）</a>
+    <p>WebGL + 视频 + Canvas 同时跑，长时间观察是否花屏 / 黑块 / 崩溃。</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const tb=document.querySelector('#gpuInfo tbody');
+  function row(k,v,cls){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${k}</td><td class="${cls||''}">${v}</td>`;
+    tb.appendChild(tr);
+  }
+  row('UserAgent', navigator.userAgent);
+  row('硬件并发', navigator.hardwareConcurrency || '未知');
+  row('设备内存(GB)', navigator.deviceMemory || '未知');
+
+  // WebGL
+  let gl=null, ext=null;
+  try{
+    const c=document.createElement('canvas');
+    gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
+  }catch(e){}
+  if(!gl){
+    row('WebGL 支持', '不支持（GPU 加速可能未启用）', 'bad');
+  }else{
+    row('WebGL 支持', (gl instanceof WebGL2RenderingContext?'WebGL2':'WebGL1') + ' 可用', 'ok');
+    ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const vendor = ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
+    const renderer = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    row('GPU Vendor', vendor);
+    row('GPU Renderer', renderer);
+    const isSwift = /SwiftShader|Software|llvmpipe|Microsoft Basic/i.test(renderer);
+    row('硬件加速', isSwift ? '软件渲染（GPU 未生效）' : '硬件加速生效', isSwift?'bad':'ok');
+    row('Max Texture Size', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+  }
+
+  // 是否支持 WebGPU
+  row('WebGPU 支持', ('gpu' in navigator) ? '支持' : '不支持');
+  // 是否支持 OffscreenCanvas
+  row('OffscreenCanvas', (typeof OffscreenCanvas!=='undefined') ? '支持' : '不支持');
+})();
+</script>
+</body>
+</html>
