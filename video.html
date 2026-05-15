@@ -7,52 +7,132 @@
   body{margin:0;background:#0c0f14;color:#fff;font-family:Arial;padding:12px;}
   h2{margin:0 0 10px;}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
-  video{width:100%;background:#000;border-radius:6px;}
-  .item small{color:#9ab;}
-  .info{background:#1a2030;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:13px;}
-  button{margin-right:8px;}
+  .item{background:#1a2030;border-radius:6px;padding:8px;}
+  .item small{color:#9ab;display:block;margin-bottom:4px;}
+  .item .src{color:#5aa9ff;font-size:11px;word-break:break-all;margin-top:4px;}
+  .item .status{font-size:12px;margin-top:4px;}
+  .ok{color:#4ade80;} .err{color:#f87171;} .loading{color:#fbbf24;}
+  video{width:100%;height:260px;background:#000;border-radius:4px;display:block;}
+  .info{background:#1a2030;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:13px;line-height:1.6;}
+  .info code{background:#000;padding:1px 6px;border-radius:3px;color:#7ad;}
+  button{margin-right:8px;padding:4px 12px;background:#2b6cff;color:#fff;border:0;border-radius:4px;cursor:pointer;}
+  button:hover{background:#4080ff;}
 </style>
 </head>
 <body>
 <h2>视频播放 / 硬件解码测试</h2>
 <div class="info">
-  说明：观察是否流畅、是否花屏 / 黑屏、CPU 占用是否明显升高（升高过多说明走了软解）。
-  可在 <code>chrome://media-internals</code> 查看实际解码器。
+  关注点：①画面是否流畅 ②是否花屏/绿屏/黑块 ③CPU/GPU 占用（任务管理器看 GPU 列）<br/>
+  对照测试：在 <code>chrome://media-internals</code> 中查看 Decoder name 是否为硬解（D3D11VideoDecoder / MediaFoundationVideoDecoder）。
   <div style="margin-top:6px;">
     <button onclick="playAll()">▶ 全部播放</button>
     <button onclick="pauseAll()">⏸ 全部暂停</button>
-    <button onclick="muteAll(true)">静音</button>
-    <button onclick="muteAll(false)">取消静音</button>
+    <button onclick="muteAll(false)">🔊 取消静音</button>
+    <button onclick="muteAll(true)">🔇 静音</button>
+    <button onclick="reloadAll()">↻ 重新加载</button>
   </div>
 </div>
-<div class="grid">
-  <div class="item">
-    <small>① MP4 / H.264（兼容性最好）</small>
-    <video controls preload="auto" loop crossorigin="anonymous"
-      src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
-  </div>
-  <div class="item">
-    <small>② MP4 / H.264 高码率</small>
-    <video controls preload="auto" loop crossorigin="anonymous"
-      src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4"></video>
-  </div>
-  <div class="item">
-    <small>③ WebM / VP9（GPU 解码常见）</small>
-    <video controls preload="auto" loop crossorigin="anonymous"
-      src="https://test-videos.co.uk/vids/bigbuckbunny/webm/vp9/720/Big_Buck_Bunny_720_10s_1MB.webm"></video>
-  </div>
-  <div class="item">
-    <small>④ MP4 1080p 长片</small>
-    <video controls preload="auto" loop crossorigin="anonymous"
-      src="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"></video>
-  </div>
-</div>
+<div class="grid" id="grid"></div>
+
 <script>
+// 多备选源，依次降级。这些都是公开、长期稳定的测试样本，国内可访问性较好。
+const SOURCES = [
+  {
+    title: '① Big Buck Bunny - MP4/H.264 720p（经典开源短片）',
+    list: [
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      'https://media.w3.org/2010/05/bunny/movie.mp4',
+      'https://www.w3schools.com/html/mov_bbb.mp4'
+    ]
+  },
+  {
+    title: '② Sintel - MP4/H.264（Blender 开源电影）',
+    list: [
+      'https://media.w3.org/2010/05/sintel/trailer.mp4',
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
+    ]
+  },
+  {
+    title: '③ Sintel - WebM/VP9（用于测 VP9 硬解）',
+    list: [
+      'https://media.w3.org/2010/05/sintel/trailer.webm',
+      'https://media.w3.org/2010/05/bunny/trailer.webm'
+    ]
+  },
+  {
+    title: '④ Elephants Dream - MP4/H.264（高码率长片）',
+    list: [
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+      'https://media.w3.org/2010/05/video/movie_300.mp4'
+    ]
+  }
+];
+
+const grid = document.getElementById('grid');
+
+SOURCES.forEach((s, idx) => {
+  const item = document.createElement('div');
+  item.className = 'item';
+  item.innerHTML = `
+    <small>${s.title}</small>
+    <video id="v${idx}" controls autoplay muted loop playsinline preload="auto" crossorigin="anonymous"></video>
+    <div class="src" id="src${idx}"></div>
+    <div class="status loading" id="st${idx}">准备加载...</div>
+  `;
+  grid.appendChild(item);
+
+  const v = item.querySelector('video');
+  const st = item.querySelector('.status');
+  const srcEl = item.querySelector('.src');
+  let tryIdx = 0;
+  let timer = null;
+
+  function loadNext() {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (tryIdx >= s.list.length) {
+      st.textContent = '✗ 所有备选源加载失败（可能网络不通或被防火墙拦截）';
+      st.className = 'status err';
+      return;
+    }
+    const url = s.list[tryIdx++];
+    srcEl.textContent = url;
+    st.textContent = '⏳ 正在加载第 ' + tryIdx + ' 个源...';
+    st.className = 'status loading';
+    v.src = url;
+    v.load();
+
+    // 8 秒还没数据就尝试下一个源
+    timer = setInterval(() => {
+      if (v.readyState >= 2) {
+        clearInterval(timer); timer = null;
+        st.textContent = '✓ 已加载并播放';
+        st.className = 'status ok';
+      } else if (v.networkState === 3) {
+        clearInterval(timer); timer = null;
+        loadNext();
+      }
+    }, 8000);
+  }
+
+  v.addEventListener('loadeddata', () => {
+    if (timer) { clearInterval(timer); timer = null; }
+    st.textContent = '✓ 已加载并播放';
+    st.className = 'status ok';
+    v.play().catch(()=>{});
+  });
+  v.addEventListener('error', () => {
+    console.warn('video error', v.error);
+    loadNext();
+  });
+
+  loadNext();
+});
+
 function $$(){return document.querySelectorAll('video');}
 function playAll(){ $$().forEach(v=>v.play().catch(()=>{})); }
 function pauseAll(){ $$().forEach(v=>v.pause()); }
 function muteAll(b){ $$().forEach(v=>v.muted=b); }
-muteAll(true);
+function reloadAll(){ location.reload(); }
 </script>
 </body>
 </html>
