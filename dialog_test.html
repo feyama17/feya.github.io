@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>JS 原生弹窗测试页 - alert / confirm / prompt</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #f5f7fa; color: #222;
+  }
+  header {
+    background: #fff; border-bottom: 1px solid #dcdfe6;
+    padding: 12px 18px; position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 16px; }
+  .pill { background: #eef4fc; padding: 2px 10px; border-radius: 10px; font-size: 12px; color: #333; }
+  main { padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; }
+  .card { background: #fff; border: 1px solid #dcdfe6; border-radius: 6px; padding: 14px; }
+  .card h2 { margin: 0 0 6px 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; color: #fff; }
+  .tag.p0 { background: #e53935; }
+  .tag.pre { background: #ffb74d; color: #333; }
+  .desc { font-size: 12px; color: #555; margin: 4px 0 10px; }
+  .steps { font-size: 12px; color: #555; margin: 4px 0 10px; background: #fafafa; padding: 8px; border-radius: 4px; }
+  .steps b { color: #333; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    padding: 7px 14px; border: 1px solid #dcdfe6; background: #fff; border-radius: 4px;
+    cursor: pointer; font-size: 13px;
+  }
+  button:hover { background: #f0f6ff; border-color: #4a90e2; }
+  button.primary { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+  button.danger  { background: #e53935; color: #fff; border-color: #e53935; }
+  button.warn    { background: #ff9800; color: #fff; border-color: #ff9800; }
+  .result {
+    margin-top: 10px; padding: 8px; background: #1e1e1e; color: #9cdcfe;
+    font-family: Consolas, monospace; font-size: 12px; border-radius: 4px;
+    max-height: 160px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .result:empty { display: none; }
+  .big-card { grid-column: 1 / -1; }
+  .cnt-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; font-size: 13px; }
+  .cnt-row span.n { font-family: Consolas, monospace; color: #4a90e2; font-weight: bold; font-size: 15px; }
+  .progress {
+    height: 8px; background: #eee; border-radius: 4px; overflow: hidden; width: 100%;
+  }
+  .progress > div { height: 100%; background: #4a90e2; width: 0%; transition: width .2s; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JS 原生弹窗测试页</h1>
+  <span class="pill">window.alert / confirm / prompt</span>
+  <span class="pill" id="uaPill">UA 加载中...</span>
+</header>
+
+<main>
+
+  <!-- =========== 1. alert =========== -->
+  <section class="card">
+    <h2><span class="tag p0">P0</span> 1. alert 正常展示并响应「确定」</h2>
+    <div class="desc">前置条件：内置浏览器已打开可触发 <code>window.alert</code> 的测试页面</div>
+    <div class="steps">
+      <b>操作步骤：</b><br>
+      1. 点击下方按钮触发页面调用 <code>window.alert</code><br>
+      2. 点击弹窗中的「确定」按钮<br>
+      <b>预期结果：</b> alert 对话框正常展示文案，点击「确定」后弹窗关闭消失
+    </div>
+    <div class="btns">
+      <button class="primary" onclick="doAlert('基础 alert 弹窗\\n请点击「确定」关闭')">触发基础 alert</button>
+      <button onclick="doAlert('这是一段较长的 alert 文本，用于验证文案是否正常展示。\\n换行测试1\\n换行测试2\\n换行测试3')">多行文本 alert</button>
+      <button onclick="doAlert('中英文混排 Alert ABC 123j !@#$%^&amp;*')">中英混排 alert</button>
+      <button onclick="doAlert('')">空文本 alert</button>
+      <button onclick="doAlert('超长文本：' + '0123456789'.repeat(50))">超长文本 alert</button>
+    </div>
+    <pre class="result" id="r-alert"></pre>
+  </section>
+
+  <!-- =========== 2. confirm =========== -->
+  <section class="card">
+    <h2><span class="tag p0">P0</span> 2. confirm 正常展示并响应「确定」/「取消」</h2>
+    <div class="desc">前置条件：内置浏览器已打开可触发 <code>window.confirm</code> 的测试页面</div>
+    <div class="steps">
+      <b>操作步骤：</b><br>
+      1. 点击按钮触发页面调用 <code>window.confirm</code><br>
+      2. 分别点击弹窗中的「确定」和「取消」按钮<br>
+      <b>预期结果：</b><br>
+      · 点击「确定」弹窗关闭，页面按确认分支执行（返回 true）<br>
+      · 点击「取消」弹窗关闭，页面按取消分支执行（返回 false）
+    </div>
+    <div class="btns">
+      <button class="primary" onclick="doConfirm('基础 confirm 弹窗\\n请分别测试「确定」和「取消」')">触发基础 confirm</button>
+      <button onclick="doConfirm('删除后不可恢复，确定要删除吗？')">业务型 confirm</button>
+      <button onclick="doConfirm('中英文混排 Confirm ABC 123j 是否继续？')">中英混排 confirm</button>
+      <button onclick="doConfirm('超长文案：' + '是否继续？'.repeat(40))">超长文本 confirm</button>
+    </div>
+    <pre class="result" id="r-confirm"></pre>
+  </section>
+
+  <!-- =========== 3. prompt =========== -->
+  <section class="card">
+    <h2><span class="tag p0">P0</span> 3. prompt 正常展示并响应「确定」/「取消」</h2>
+    <div class="desc">前置条件：内置浏览器已打开可触发 <code>window.prompt</code> 的测试页面</div>
+    <div class="steps">
+      <b>操作步骤：</b><br>
+      1. 点击按钮触发页面调用 <code>window.prompt</code><br>
+      2. 在输入框中输入任意文本<br>
+      3. 分别点击「确定」和「取消」按钮<br>
+      <b>预期结果：</b><br>
+      · 点击「确定」关闭并取到输入值<br>
+      · 点击「取消」关闭并返回 null（取消分支）
+    </div>
+    <div class="btns">
+      <button class="primary" onclick="doPrompt('请输入任意文本：', '')">触发基础 prompt</button>
+      <button onclick="doPrompt('请输入你的名字：', '默认值-张三')">带默认值 prompt</button>
+      <button onclick="doPrompt('请输入中英文：Enter 中文/English 混排', 'ABC 123j 测试')">中英混排 prompt</button>
+      <button onclick="doPrompt('请输入特殊字符测试：&lt;&gt;&amp;\"\\\\', '&lt;b&gt;&lt;/b&gt;')">特殊字符 prompt</button>
+      <button onclick="doPrompt('', '')">空标题空默认值 prompt</button>
+    </div>
+    <pre class="result" id="r-prompt"></pre>
+  </section>
+
+  <!-- =========== 4. 连续 10 次 alert =========== -->
+  <section class="card big-card">
+    <h2><span class="tag p0">P0</span> 4. 页面连续触发 10 个 alert（堆栈/卡死压力测试）</h2>
+    <div class="desc">前置条件：内置浏览器已打开测试页面</div>
+    <div class="steps">
+      <b>操作步骤：</b><br>
+      1. 点击「开始连续触发 10 个 alert」<br>
+      2. 页面脚本连续调用 10 次 <code>window.alert</code>（文案为 "alert-1" ~ "alert-10"）<br>
+      3. 逐个点击「确定」按钮确认关闭弹窗<br>
+      <b>预期结果：</b><br>
+      · 10 个 alert 弹窗按顺序依次弹出（alert-1 → alert-10）<br>
+      · 每次只展示一个，上一个关闭后下一个才出现<br>
+      · 无堆叠丢失、无卡死<br>
+      · 10 个 alert 全部关闭后页面恢复可交互，内置浏览器进程未崩溃，页面无 JS 异常
+    </div>
+    <div class="btns">
+      <button class="warn" onclick="burst10()">开始连续触发 10 个 alert</button>
+      <button class="danger" onclick="burst20()">[加强] 连续触发 20 个 alert</button>
+      <button onclick="burstMixed()">[混合] 连续触发 10 个 alert/confirm/prompt 交替</button>
+      <button onclick="checkInteractive()">检测页面是否可交互</button>
+    </div>
+    <div class="cnt-row">
+      进度：<span class="n" id="burstN">0</span> / <span id="burstTotal">10</span>
+      <div class="progress"><div id="burstBar"></div></div>
+    </div>
+    <pre class="result" id="r-burst"></pre>
+  </section>
+
+  <!-- =========== 5. 异常输入场景（锦上添花） =========== -->
+  <section class="card big-card">
+    <h2><span class="tag pre">可选</span> 5. 异常/边界场景补充</h2>
+    <div class="desc">覆盖脑图未明确要求但常见的边界用例，可按需使用</div>
+    <div class="btns">
+      <button onclick="doAlert(undefined)">alert(undefined)</button>
+      <button onclick="doAlert(null)">alert(null)</button>
+      <button onclick="doAlert(0)">alert(0)</button>
+      <button onclick="doAlert({a:1,b:[1,2,3]})">alert(对象)</button>
+      <button onclick="doConfirm(undefined)">confirm(undefined)</button>
+      <button onclick="doPrompt(undefined, undefined)">prompt(undefined,undefined)</button>
+      <button onclick="setTimeout(()=>doAlert('setTimeout 延迟 1s 弹出'), 1000)">延迟 1s 弹出 alert</button>
+      <button onclick="(async()=>{for(let i=1;i<=3;i++){await new Promise(r=>setTimeout(r,400));alert('async-'+i);}})()">async/await 中弹 3 次</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const log = (id, msg) => {
+  const el = document.getElementById(id);
+  const time = new Date().toLocaleTimeString();
+  el.textContent += `[${time}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+};
+
+// UA 展示
+document.getElementById('uaPill').textContent = navigator.userAgent.length > 80
+  ? navigator.userAgent.slice(0, 80) + '...'
+  : navigator.userAgent;
+
+function doAlert(text) {
+  try {
+    const before = performance.now();
+    window.alert(text);
+    const cost = (performance.now() - before).toFixed(0);
+    log('r-alert', `alert 已关闭 (阻塞 ${cost}ms), 文本=${JSON.stringify(text)}`);
+  } catch (e) {
+    log('r-alert', `[ERROR] ${e.message}`);
+  }
+}
+
+function doConfirm(text) {
+  try {
+    const before = performance.now();
+    const ret = window.confirm(text);
+    const cost = (performance.now() - before).toFixed(0);
+    log('r-confirm', `confirm 返回=${ret} (${ret ? '确定分支' : '取消分支'}) 阻塞 ${cost}ms`);
+  } catch (e) {
+    log('r-confirm', `[ERROR] ${e.message}`);
+  }
+}
+
+function doPrompt(text, def) {
+  try {
+    const before = performance.now();
+    const ret = window.prompt(text, def);
+    const cost = (performance.now() - before).toFixed(0);
+    if (ret === null) {
+      log('r-prompt', `prompt 返回=null (取消分支) 阻塞 ${cost}ms`);
+    } else {
+      log('r-prompt', `prompt 返回=${JSON.stringify(ret)} (确定分支) 阻塞 ${cost}ms`);
+    }
+  } catch (e) {
+    log('r-prompt', `[ERROR] ${e.message}`);
+  }
+}
+
+function updateBurstUI(cur, total) {
+  document.getElementById('burstN').textContent = cur;
+  document.getElementById('burstTotal').textContent = total;
+  document.getElementById('burstBar').style.width = (cur * 100 / total) + '%';
+}
+
+function burst10() {
+  const total = 10;
+  updateBurstUI(0, total);
+  log('r-burst', `[开始] 连续触发 ${total} 个 alert`);
+  const t0 = performance.now();
+  for (let i = 1; i <= total; i++) {
+    const before = performance.now();
+    window.alert('alert-' + i);  // 阻塞直到用户点确定
+    const cost = (performance.now() - before).toFixed(0);
+    log('r-burst', `  已关闭 alert-${i} (阻塞 ${cost}ms)`);
+    updateBurstUI(i, total);
+  }
+  const total_cost = ((performance.now() - t0) / 1000).toFixed(1);
+  log('r-burst', `[完成] 10 个 alert 全部关闭, 总耗时 ${total_cost}s`);
+  log('r-burst', `[校验] 页面脚本成功执行到末尾, 未卡死`);
+}
+
+function burst20() {
+  const total = 20;
+  updateBurstUI(0, total);
+  log('r-burst', `[开始] 加强测试: 连续触发 ${total} 个 alert`);
+  for (let i = 1; i <= total; i++) {
+    window.alert('alert-' + i + ' / ' + total);
+    updateBurstUI(i, total);
+  }
+  log('r-burst', `[完成] ${total} 个 alert 全部关闭`);
+}
+
+function burstMixed() {
+  const total = 10;
+  updateBurstUI(0, total);
+  log('r-burst', `[开始] 混合: alert/confirm/prompt 交替触发 ${total} 次`);
+  const results = [];
+  for (let i = 1; i <= total; i++) {
+    if (i % 3 === 1) {
+      window.alert('[Mixed] alert #' + i);
+      results.push('alert');
+    } else if (i % 3 === 2) {
+      const r = window.confirm('[Mixed] confirm #' + i + '?');
+      results.push('confirm=' + r);
+    } else {
+      const r = window.prompt('[Mixed] prompt #' + i, 'default-' + i);
+      results.push('prompt=' + JSON.stringify(r));
+    }
+    updateBurstUI(i, total);
+  }
+  log('r-burst', `[完成] 结果: ${results.join(' | ')}`);
+}
+
+function checkInteractive() {
+  log('r-burst', `[校验] 当前时间=${new Date().toLocaleTimeString()}, 若此行可输出, 则页面可交互、脚本未卡死`);
+  // 做一次微任务 + requestAnimationFrame + fetch(内存) 自检
+  Promise.resolve().then(() => log('r-burst', `  微任务队列正常`));
+  requestAnimationFrame(() => log('r-burst', `  requestAnimationFrame 正常, 渲染未卡死`));
+  const start = performance.now();
+  for (let i = 0; i < 1e6; i++) {}
+  log('r-burst', `  同步计算 1e6 耗时 ${(performance.now() - start).toFixed(1)}ms, JS 引擎正常`);
+}
+
+// 全局异常监控
+window.addEventListener('error', e => {
+  console.error('[JS Error]', e.message);
+});
+</script>
+</body>
+</html>
