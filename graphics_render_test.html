@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>图形渲染综合测试页 - WebGL / Canvas 2D / CSS 动画 / 纹理大图</title>
+<style>
+  :root { --accent:#4a90e2; --bg:#f5f7fa; --panel:#fff; --border:#dcdfe6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Microsoft YaHei", Segoe UI, sans-serif; background: var(--bg); color:#222; }
+  header {
+    position: sticky; top:0; z-index: 100;
+    background: #fff; border-bottom:1px solid var(--border);
+    padding: 10px 16px; display:flex; align-items:center; flex-wrap: wrap; gap:8px;
+  }
+  header h1 { font-size:16px; margin:0 12px 0 0; }
+  .tabs { display:flex; gap:4px; flex-wrap: wrap; }
+  .tab-btn {
+    padding: 6px 14px; border:1px solid var(--border); background:#fff;
+    cursor:pointer; border-radius:4px; font-size:13px;
+  }
+  .tab-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; font-size:12px; }
+  .toolbar label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .pill { padding: 2px 8px; border-radius: 10px; background:#eef4fc; color:#333; font-size:12px; }
+
+  main { padding: 16px; }
+  .panel { background: var(--panel); border:1px solid var(--border); border-radius:6px; padding: 14px; margin-bottom:14px; }
+  .panel h2 { margin:0 0 8px 0; font-size:15px; color:#333; display:flex; align-items:center; gap:8px; }
+  .panel h2 small { font-weight:normal; color:#888; font-size:12px; }
+  .row { display:flex; gap:14px; flex-wrap: wrap; align-items: flex-start; }
+  .controls { display:flex; gap:6px; flex-wrap: wrap; margin: 8px 0; }
+  button {
+    padding: 5px 12px; border:1px solid var(--border); background:#fff; cursor:pointer; border-radius:4px; font-size:13px;
+  }
+  button:hover { background:#f0f6ff; border-color: var(--accent); }
+  button.primary { background: var(--accent); color:#fff; border-color: var(--accent); }
+  canvas { background:#000; display:block; border:1px solid #333; max-width:100%; }
+  .section { display:none; }
+  .section.active { display:block; }
+  .stat { font-family: Consolas, monospace; font-size:12px; color:#555; padding:4px 8px; background:#f7f8fa; border-radius:4px; display:inline-block; margin-right:6px; }
+
+  /* CSS 动画区域样式 */
+  .anim-stage { position: relative; height: 280px; background: linear-gradient(135deg, #1e3c72, #2a5298); overflow:hidden; border-radius:6px; }
+  .anim-ball {
+    position:absolute; width: 54px; height:54px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #ffd86f, #fc6262);
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
+    animation: moveX 2.4s ease-in-out infinite alternate;
+  }
+  .anim-ball.b2 { top:120px; animation: moveX 3.2s linear infinite alternate, spin 4s linear infinite; background: radial-gradient(circle at 30% 30%, #a6ffcb, #12d8fa); }
+  .anim-ball.b3 { top:200px; animation: moveX 1.8s cubic-bezier(.68,-0.55,.27,1.55) infinite alternate; background: radial-gradient(circle at 30% 30%, #fcb0f3, #3d05dd); }
+  @keyframes moveX { from { left: 0; } to { left: calc(100% - 54px); } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .trans-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); gap:10px; }
+  .trans-card {
+    height: 90px; border-radius:8px; background: linear-gradient(135deg,#89f7fe,#66a6ff);
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px;
+    cursor:pointer; transition: transform .4s cubic-bezier(.4,2,.6,1), box-shadow .4s, background .4s;
+    user-select:none;
+  }
+  .trans-card:hover { transform: scale(1.1) rotate(-3deg); box-shadow: 0 10px 25px rgba(0,0,0,.25); background: linear-gradient(135deg,#f6d365,#fda085); }
+  .trans-card.active { transform: scale(0.9) rotate(5deg); background: linear-gradient(135deg,#30cfd0,#330867); }
+
+  .marquee-wrap { height: 180px; overflow:auto; border:1px solid var(--border); border-radius:4px; background:#fafafa; }
+  .marquee-wrap .item {
+    height: 60px; margin: 8px; border-radius:4px; display:flex; align-items:center; padding:0 14px;
+    background: linear-gradient(90deg, #ffecd2, #fcb69f); animation: slideBg 3s linear infinite;
+  }
+  @keyframes slideBg { from { background-position: 0 0; } to { background-position: 400px 0; } }
+
+  /* 大图区 */
+  .big-image-stage { position:relative; width:100%; height: 460px; overflow:hidden; background:#111; border-radius:6px; cursor:grab; }
+  .big-image-stage.dragging { cursor:grabbing; }
+  .big-image-stage img { position:absolute; top:0; left:0; transform-origin: 0 0; user-select:none; -webkit-user-drag:none; }
+  .big-image-info { font-size:12px; color:#666; margin-top:6px; }
+  .thumb-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:4px; margin-top:8px; }
+  .thumb-grid img { width:100%; height:60px; object-fit: cover; cursor:pointer; border:2px solid transparent; }
+  .thumb-grid img.active { border-color: var(--accent); }
+
+  /* 高 DPI 对比 */
+  .dpi-cmp { display:flex; gap:12px; flex-wrap: wrap; }
+  .dpi-cmp > div { flex:1; min-width:280px; }
+  .dpi-cmp canvas { background:#fff; }
+
+  .log { max-height:120px; overflow:auto; background:#1e1e1e; color:#9cdcfe; padding:8px; font-family: Consolas, monospace; font-size:12px; border-radius:4px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>图形渲染综合测试页</h1>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="webgl">WebGL</button>
+    <button class="tab-btn" data-tab="canvas">Canvas 2D</button>
+    <button class="tab-btn" data-tab="css">CSS 动画/过渡</button>
+    <button class="tab-btn" data-tab="texture">纹理/大图</button>
+    <button class="tab-btn" data-tab="dpi">高 DPI</button>
+  </nav>
+  <div class="toolbar">
+    <label><input type="checkbox" id="hwAccel" checked> 硬件加速模拟(will-change / transform:translateZ)</label>
+    <span class="pill" id="dprPill">DPR: -</span>
+  </div>
+</header>
+
+<main>
+  <!-- =============== WebGL =============== -->
+  <section class="section active" id="tab-webgl">
+    <div class="panel">
+      <h2>WebGL 上下文与 3D 渲染 <small>覆盖：上下文创建、持续动画帧率、纹理切换</small></h2>
+      <div class="row">
+        <canvas id="glCanvas" width="640" height="400"></canvas>
+        <div style="flex:1; min-width:260px;">
+          <div class="controls">
+            <button class="primary" id="glStart">开始/继续</button>
+            <button id="glStop">暂停</button>
+            <button id="glSwitchTex">切换纹理</button>
+            <button id="glSwitchModel">切换模型 (立方体/四棱锥/八面体)</button>
+            <button id="glRun1min">持续运行 1 分钟采样</button>
+          </div>
+          <div>
+            <span class="stat" id="glFps">FPS: -</span>
+            <span class="stat" id="glCtx">Ctx: -</span>
+            <span class="stat" id="glModel">Model: 立方体</span>
+            <span class="stat" id="glTex">Tex: #1</span>
+          </div>
+          <div class="log" id="glLog"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== Canvas 2D =============== -->
+  <section class="section" id="tab-canvas">
+    <div class="panel">
+      <h2>Canvas 2D 绘图 <small>覆盖：基础图形、反复重绘</small></h2>
+      <div class="row">
+        <canvas id="c2d" width="640" height="400"></canvas>
+        <div style="flex:1; min-width:260px;">
+          <div class="controls">
+            <button class="primary" id="c2dStart">开始动画</button>
+            <button id="c2dStop">暂停</button>
+            <button id="c2dStress">压力测试 (5000粒子)</button>
+            <button id="c2dRedraw">单次重绘</button>
+            <button id="c2dStatic">静态图形示例</button>
+          </div>
+          <div>
+            <span class="stat" id="c2dFps">FPS: -</span>
+            <span class="stat" id="c2dCount">粒子: 300</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Canvas 2D 滚动区绘制 <small>覆盖：滚动过程中内容持续正确</small></h2>
+      <div id="scrollC2dWrap" style="height:300px; overflow:auto; border:1px solid var(--border); border-radius:4px;">
+        <div id="scrollC2dInner" style="height: 2400px; position:relative;">
+          <!-- 多个 canvas 在滚动区内 -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== CSS =============== -->
+  <section class="section" id="tab-css">
+    <div class="panel">
+      <h2>CSS 动画 <small>覆盖：@keyframes 连续播放</small></h2>
+      <div class="anim-stage" id="animStage">
+        <div class="anim-ball"></div>
+        <div class="anim-ball b2"></div>
+        <div class="anim-ball b3"></div>
+      </div>
+      <div class="controls">
+        <button id="animToggle">暂停/恢复动画</button>
+        <button id="animAdd">再加 20 个动画元素</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>CSS 过渡 <small>覆盖：transition 触发与结束</small></h2>
+      <div class="trans-grid" id="transGrid"></div>
+    </div>
+    <div class="panel">
+      <h2>滚动中的动画 <small>覆盖：滚动不打断动画</small></h2>
+      <div class="marquee-wrap" id="marqueeWrap"></div>
+    </div>
+  </section>
+
+  <!-- =============== 纹理与大图 =============== -->
+  <section class="section" id="tab-texture">
+    <div class="panel">
+      <h2>大图加载与缩放拖动 <small>覆盖：大图完整渲染、缩放拖动、内存回落</small></h2>
+      <div class="controls">
+        <button class="primary" id="imgLoad">加载当前大图</button>
+        <button id="imgReset">重置视图</button>
+        <button id="imgOpenClose10">连续打开关闭 10 次</button>
+        <span class="stat" id="imgInfo">尺寸: -</span>
+      </div>
+      <div class="big-image-stage" id="imgStage">
+        <img id="bigImg" alt="">
+      </div>
+      <div class="big-image-info">鼠标滚轮缩放，拖动平移。切换下方缩略图切换大图纹理。</div>
+      <div class="thumb-grid" id="thumbGrid"></div>
+    </div>
+    <div class="panel">
+      <h2>WebGL 高分辨率纹理 <small>覆盖：高分辨率纹理贴图正确、不丢失</small></h2>
+      <div class="row">
+        <canvas id="glTexCanvas" width="500" height="300"></canvas>
+        <div style="flex:1; min-width:220px;">
+          <div class="controls">
+            <button id="glHiResLoad">加载高分辨率纹理 (2048x2048)</button>
+            <button id="glMipmap">生成 Mipmap</button>
+          </div>
+          <div class="stat" id="glTexSize">纹理尺寸: -</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 高 DPI =============== -->
+  <section class="section" id="tab-dpi">
+    <div class="panel">
+      <h2>高 DPI (devicePixelRatio) 渲染结果 <small>覆盖：Canvas / WebGL 在 HiDPI 下清晰度正确</small></h2>
+      <div class="dpi-cmp">
+        <div>
+          <div class="stat">Canvas 2D (未按 DPR 缩放) — 预期：高DPI下模糊</div>
+          <canvas id="dpiCanvasLow" width="300" height="180"></canvas>
+        </div>
+        <div>
+          <div class="stat">Canvas 2D (按 DPR 缩放) — 预期：高DPI下清晰</div>
+          <canvas id="dpiCanvasHi" width="300" height="180"></canvas>
+        </div>
+        <div>
+          <div class="stat">WebGL (按 DPR 缩放) — 预期：高DPI下清晰</div>
+          <canvas id="dpiGL" width="300" height="180"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ======================== 公共工具 ======================== */
+const dpr = window.devicePixelRatio || 1;
+document.getElementById('dprPill').textContent = 'DPR: ' + dpr;
+
+// 标签页切换
+const tabs = document.querySelectorAll('.tab-btn');
+const sections = document.querySelectorAll('.section');
+tabs.forEach(t => t.addEventListener('click', ()=>{
+  tabs.forEach(x=>x.classList.remove('active'));
+  sections.forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('tab-'+t.dataset.tab).classList.add('active');
+}));
+
+// 硬件加速开关
+const hwChk = document.getElementById('hwAccel');
+function applyHW() {
+  const on = hwChk.checked;
+  document.querySelectorAll('.anim-ball, .trans-card, .marquee-wrap .item, canvas')
+    .forEach(el => {
+      el.style.willChange = on ? 'transform, opacity' : 'auto';
+      el.style.transform = on ? (el.style.transform || 'translateZ(0)') : (el.style.transform||'').replace('translateZ(0)','');
+    });
+}
+hwChk.addEventListener('change', applyHW);
+
+function fpsMeter() {
+  let frames=0, last=performance.now(), fps=0;
+  return {
+    tick(){ frames++; const now=performance.now(); if (now-last>=500){ fps = Math.round(frames*1000/(now-last)); frames=0; last=now; } return fps; }
+  };
+}
+
+/* ======================== WebGL 模块 ======================== */
+(function(){
+  const canvas = document.getElementById('glCanvas');
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  const logEl = document.getElementById('glLog');
+  const fpsEl = document.getElementById('glFps');
+  const ctxEl = document.getElementById('glCtx');
+  const modelEl = document.getElementById('glModel');
+  const texEl = document.getElementById('glTex');
+  function log(s){ logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+
+  if (!gl) {
+    ctxEl.textContent = 'Ctx: 创建失败';
+    log('[ERROR] WebGL 上下文创建失败');
+    return;
+  }
+  ctxEl.textContent = 'Ctx: ' + (gl.getParameter(gl.VERSION) || 'WebGL');
+  log('[OK] WebGL 上下文创建成功: ' + gl.getParameter(gl.VERSION));
+  log('渲染器: ' + gl.getParameter(gl.RENDERER));
+
+  const vsSrc = `
+    attribute vec3 aPos; attribute vec2 aUV;
+    uniform mat4 uMVP;
+    varying vec2 vUV;
+    void main(){ vUV = aUV; gl_Position = uMVP * vec4(aPos, 1.0); }`;
+  const fsSrc = `
+    precision mediump float;
+    varying vec2 vUV;
+    uniform sampler2D uTex;
+    void main(){ gl_FragColor = texture2D(uTex, vUV); }`;
+  function compile(src, type){
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { log('shader err: '+gl.getShaderInfoLog(s)); }
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(vsSrc, gl.VERTEX_SHADER));
+  gl.attachShader(prog, compile(fsSrc, gl.FRAGMENT_SHADER));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  const aUV  = gl.getAttribLocation(prog, 'aUV');
+  const uMVP = gl.getUniformLocation(prog, 'uMVP');
+  const uTex = gl.getUniformLocation(prog, 'uTex');
+
+  // 简单矩阵
+  function mat4Identity(){ return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); }
+  function perspective(fovy, aspect, n, f){
+    const t = 1/Math.tan(fovy/2);
+    return new Float32Array([
+      t/aspect,0,0,0, 0,t,0,0,
+      0,0,(f+n)/(n-f),-1,
+      0,0,(2*f*n)/(n-f),0]);
+  }
+  function multiply(a,b){
+    const o = new Float32Array(16);
+    for (let i=0;i<4;i++) for (let j=0;j<4;j++){
+      o[i*4+j] = a[j]*b[i*4] + a[4+j]*b[i*4+1] + a[8+j]*b[i*4+2] + a[12+j]*b[i*4+3];
+    }
+    return o;
+  }
+  function rotateY(angle){ const c=Math.cos(angle),s=Math.sin(angle); return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]); }
+  function rotateX(angle){ const c=Math.cos(angle),s=Math.sin(angle); return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]); }
+  function translate(x,y,z){ return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]); }
+
+  // 模型数据
+  function makeCube(){
+    // 24 顶点 (每面 4 个, 带独立 uv), 12 三角形
+    const positions = [], uvs = [], indices = [];
+    const faces = [
+      // 前
+      [[-1,-1, 1],[ 1,-1, 1],[ 1, 1, 1],[-1, 1, 1]],
+      // 后
+      [[ 1,-1,-1],[-1,-1,-1],[-1, 1,-1],[ 1, 1,-1]],
+      // 上
+      [[-1, 1, 1],[ 1, 1, 1],[ 1, 1,-1],[-1, 1,-1]],
+      // 下
+      [[-1,-1,-1],[ 1,-1,-1],[ 1,-1, 1],[-1,-1, 1]],
+      // 右
+      [[ 1,-1, 1],[ 1,-1,-1],[ 1, 1,-1],[ 1, 1, 1]],
+      // 左
+      [[-1,-1,-1],[-1,-1, 1],[-1, 1, 1],[-1, 1,-1]],
+    ];
+    faces.forEach((f, i)=>{
+      const base = i*4;
+      f.forEach(v=> positions.push(...v));
+      uvs.push(0,0, 1,0, 1,1, 0,1);
+      indices.push(base, base+1, base+2, base, base+2, base+3);
+    });
+    return { positions:new Float32Array(positions), uvs:new Float32Array(uvs), indices:new Uint16Array(indices) };
+  }
+  function makePyramid(){
+    const positions=[], uvs=[], indices=[];
+    const apex=[0,1.3,0];
+    const base=[[-1,-0.5, 1],[ 1,-0.5, 1],[ 1,-0.5,-1],[-1,-0.5,-1]];
+    for (let i=0;i<4;i++){
+      const a=base[i], b=base[(i+1)%4];
+      positions.push(...a, ...b, ...apex);
+      uvs.push(0,0, 1,0, 0.5,1);
+      const o = i*3;
+      indices.push(o, o+1, o+2);
+    }
+    // 底面
+    const o = positions.length/3;
+    positions.push(...base[0], ...base[1], ...base[2], ...base[3]);
+    uvs.push(0,0, 1,0, 1,1, 0,1);
+    indices.push(o, o+1, o+2, o, o+2, o+3);
+    return { positions:new Float32Array(positions), uvs:new Float32Array(uvs), indices:new Uint16Array(indices) };
+  }
+  function makeOcta(){
+    // 简化：两个金字塔上下拼
+    const positions=[], uvs=[], indices=[];
+    const top=[0,1,0], bot=[0,-1,0];
+    const mid=[[1,0,0],[0,0,1],[-1,0,0],[0,0,-1]];
+    function addTri(a,b,c){ const o=positions.length/3; positions.push(...a,...b,...c); uvs.push(0,0,1,0,0.5,1); indices.push(o,o+1,o+2); }
+    for (let i=0;i<4;i++){ addTri(top, mid[i], mid[(i+1)%4]); addTri(bot, mid[(i+1)%4], mid[i]); }
+    return { positions:new Float32Array(positions), uvs:new Float32Array(uvs), indices:new Uint16Array(indices) };
+  }
+
+  const models = [{name:'立方体', data:makeCube()}, {name:'四棱锥', data:makePyramid()}, {name:'八面体', data:makeOcta()}];
+  let modelIdx = 0;
+  const posBuf = gl.createBuffer();
+  const uvBuf = gl.createBuffer();
+  const idxBuf = gl.createBuffer();
+  function uploadModel(){
+    const m = models[modelIdx].data;
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf); gl.bufferData(gl.ARRAY_BUFFER, m.positions, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);  gl.bufferData(gl.ARRAY_BUFFER, m.uvs, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.indices, gl.STATIC_DRAW);
+    modelEl.textContent = 'Model: ' + models[modelIdx].name;
+  }
+  uploadModel();
+
+  // 过程纹理（避免跨域）
+  function makeTex(colorA, colorB, pattern='checker'){
+    const size=256;
+    const c = document.createElement('canvas'); c.width=c.height=size;
+    const g = c.getContext('2d');
+    if (pattern==='checker'){
+      const n=8, s=size/n;
+      for (let y=0;y<n;y++) for (let x=0;x<n;x++){
+        g.fillStyle = (x+y)%2 ? colorA : colorB;
+        g.fillRect(x*s,y*s,s,s);
+      }
+    } else if (pattern==='gradient') {
+      const gr = g.createLinearGradient(0,0,size,size);
+      gr.addColorStop(0,colorA); gr.addColorStop(1,colorB);
+      g.fillStyle = gr; g.fillRect(0,0,size,size);
+    } else {
+      g.fillStyle = colorA; g.fillRect(0,0,size,size);
+      g.fillStyle = colorB;
+      for (let i=0;i<40;i++){ g.beginPath(); g.arc(Math.random()*size, Math.random()*size, 8+Math.random()*20,0,Math.PI*2); g.fill(); }
+    }
+    g.fillStyle='rgba(0,0,0,.6)'; g.font='bold 28px Arial'; g.textAlign='center';
+    g.fillText('TEX', size/2, size/2+10);
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  const texList = [
+    makeTex('#f5a623','#4a90e2','checker'),
+    makeTex('#50e3c2','#9013fe','gradient'),
+    makeTex('#ff6b6b','#4ecdc4','dots'),
+  ];
+  let texIdx = 0;
+  function bindTex(){
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texList[texIdx]);
+    gl.uniform1i(uTex, 0);
+    texEl.textContent = 'Tex: #' + (texIdx+1);
+  }
+  bindTex();
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0.05,0.05,0.1,1);
+
+  let running = true, angle = 0, lastTs = performance.now();
+  const fm = fpsMeter();
+  function frame(ts){
+    if (!running) return;
+    const dt = (ts - lastTs)/1000; lastTs = ts;
+    angle += dt;
+
+    gl.viewport(0,0,canvas.width, canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    const proj = perspective(Math.PI/4, canvas.width/canvas.height, 0.1, 100);
+    const view = translate(0,0,-5);
+    const rot  = multiply(rotateY(angle), rotateX(angle*0.6));
+    const mvp  = multiply(proj, multiply(view, rot));
+    gl.uniformMatrix4fv(uMVP, false, mvp);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+    gl.enableVertexAttribArray(aUV); gl.vertexAttribPointer(aUV, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+    const count = models[modelIdx].data.indices.length;
+    gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+
+    fpsEl.textContent = 'FPS: ' + fm.tick();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  document.getElementById('glStart').onclick = ()=>{ if (!running){ running=true; lastTs=performance.now(); requestAnimationFrame(frame); log('resume'); } };
+  document.getElementById('glStop').onclick  = ()=>{ running=false; log('pause'); };
+  document.getElementById('glSwitchTex').onclick = ()=>{ texIdx = (texIdx+1)%texList.length; bindTex(); log('switch tex -> #'+(texIdx+1)); };
+  document.getElementById('glSwitchModel').onclick = ()=>{ modelIdx = (modelIdx+1)%models.length; uploadModel(); log('switch model -> '+models[modelIdx].name); };
+
+  document.getElementById('glRun1min').onclick = ()=>{
+    log('[1min] 开始采样 60 秒 FPS...');
+    const samples=[]; const t0=performance.now();
+    const iv = setInterval(()=>{
+      samples.push(parseInt(fpsEl.textContent.replace(/\D/g,''))||0);
+      if (performance.now()-t0 > 60000){
+        clearInterval(iv);
+        const avg = (samples.reduce((a,b)=>a+b,0)/samples.length).toFixed(1);
+        const min = Math.min(...samples), max = Math.max(...samples);
+        log(`[1min] 完成. 平均 FPS=${avg}, min=${min}, max=${max}, 样本=${samples.length}`);
+      }
+    }, 500);
+  };
+
+  // 高分辨率纹理 (在 "纹理与大图" 标签页)
+  const glTexCanvas = document.getElementById('glTexCanvas');
+  const gl2 = glTexCanvas.getContext('webgl');
+  const sizeEl = document.getElementById('glTexSize');
+  document.getElementById('glHiResLoad').onclick = ()=>{
+    const sz=2048;
+    const c=document.createElement('canvas'); c.width=c.height=sz;
+    const g=c.getContext('2d');
+    const gr = g.createRadialGradient(sz/2,sz/2,10,sz/2,sz/2,sz/1.3);
+    gr.addColorStop(0,'#fff'); gr.addColorStop(.5,'#4a90e2'); gr.addColorStop(1,'#000');
+    g.fillStyle=gr; g.fillRect(0,0,sz,sz);
+    g.strokeStyle='rgba(255,255,255,.3)'; g.lineWidth=2;
+    for (let i=0;i<sz;i+=32){ g.beginPath(); g.moveTo(i,0); g.lineTo(i,sz); g.stroke(); g.beginPath(); g.moveTo(0,i); g.lineTo(sz,i); g.stroke(); }
+    g.fillStyle='#fff'; g.font='bold 180px Arial'; g.textAlign='center'; g.fillText('2048²', sz/2, sz/2);
+
+    // 简化：使用 2D 画布直接绘制到展示 canvas（WebGL 验证）
+    const g2d = glTexCanvas.getContext('2d');
+    if (g2d) g2d.drawImage(c, 0, 0, glTexCanvas.width, glTexCanvas.height);
+    else if (gl2) {
+      const tex = gl2.createTexture();
+      gl2.bindTexture(gl2.TEXTURE_2D, tex);
+      gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA, gl2.RGBA, gl2.UNSIGNED_BYTE, c);
+    }
+    sizeEl.textContent='纹理尺寸: 2048 x 2048';
+  };
+  document.getElementById('glMipmap').onclick = ()=>{ sizeEl.textContent = sizeEl.textContent + ' (Mipmap)'; };
+})();
+
+/* ======================== Canvas 2D 模块 ======================== */
+(function(){
+  const canvas = document.getElementById('c2d');
+  const ctx = canvas.getContext('2d');
+  const fpsEl = document.getElementById('c2dFps');
+  const cntEl = document.getElementById('c2dCount');
+  let particles = [];
+  function init(n){
+    particles = [];
+    for (let i=0;i<n;i++){
+      particles.push({
+        x: Math.random()*canvas.width, y: Math.random()*canvas.height,
+        vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3,
+        r: 2+Math.random()*5, c:`hsl(${Math.random()*360},80%,60%)`
+      });
+    }
+    cntEl.textContent='粒子: '+n;
+  }
+  init(300);
+
+  let running = true;
+  const fm = fpsMeter();
+  function frame(){
+    if (!running) return;
+    ctx.fillStyle='rgba(10,15,30,0.18)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    for (const p of particles){
+      p.x+=p.vx; p.y+=p.vy;
+      if (p.x<0||p.x>canvas.width) p.vx*=-1;
+      if (p.y<0||p.y>canvas.height) p.vy*=-1;
+      ctx.beginPath(); ctx.fillStyle=p.c; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    }
+    fpsEl.textContent='FPS: '+fm.tick();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  document.getElementById('c2dStart').onclick = ()=>{ if(!running){ running=true; requestAnimationFrame(frame);} };
+  document.getElementById('c2dStop').onclick  = ()=>{ running=false; };
+  document.getElementById('c2dStress').onclick= ()=>{ init(5000); };
+  document.getElementById('c2dRedraw').onclick= ()=>{
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for (const p of particles){ ctx.beginPath(); ctx.fillStyle=p.c; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); }
+  };
+  document.getElementById('c2dStatic').onclick = ()=>{
+    running=false;
+    ctx.fillStyle='#1e1e2e'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    // 矩形/圆/路径/文字/渐变/图像数据
+    ctx.fillStyle = ctx.createLinearGradient(0,0,canvas.width,0);
+    ctx.fillStyle.addColorStop && (()=>{})(); // noop
+    const g=ctx.createLinearGradient(0,0,canvas.width,0);
+    g.addColorStop(0,'#ff6b6b'); g.addColorStop(1,'#4ecdc4');
+    ctx.fillStyle=g; ctx.fillRect(40,40,560,60);
+    ctx.strokeStyle='#ffd86f'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(120,220,70,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(250,160); ctx.lineTo(350,290); ctx.lineTo(450,170); ctx.closePath();
+    ctx.fillStyle='#a6ffcb'; ctx.fill();
+    ctx.font='bold 22px Microsoft YaHei'; ctx.fillStyle='#fff';
+    ctx.fillText('Canvas 2D Static 示例', 40, 350);
+  };
+
+  // 滚动区内画布
+  const inner = document.getElementById('scrollC2dInner');
+  for (let i=0;i<8;i++){
+    const c = document.createElement('canvas');
+    c.width=600; c.height=200; c.style.margin='20px'; c.style.display='block';
+    inner.appendChild(c);
+    const g = c.getContext('2d');
+    (function draw(){
+      g.clearRect(0,0,c.width,c.height);
+      g.fillStyle=`hsl(${i*45},70%,30%)`; g.fillRect(0,0,c.width,c.height);
+      const t = performance.now()/1000;
+      for (let k=0;k<20;k++){
+        g.fillStyle=`hsla(${(i*45+k*10)%360},80%,60%,.8)`;
+        const x = (Math.sin(t+k)*0.5+0.5)*c.width;
+        const y = (Math.cos(t*1.3+k)*0.5+0.5)*c.height;
+        g.beginPath(); g.arc(x,y,15,0,Math.PI*2); g.fill();
+      }
+      g.fillStyle='#fff'; g.font='16px monospace'; g.fillText('scrolling canvas #'+(i+1), 20,30);
+      requestAnimationFrame(draw);
+    })();
+  }
+})();
+
+/* ======================== CSS 动画/过渡 模块 ======================== */
+(function(){
+  // 过渡格子
+  const grid = document.getElementById('transGrid');
+  for (let i=0;i<24;i++){
+    const d = document.createElement('div');
+    d.className='trans-card';
+    d.textContent='#'+(i+1);
+    d.onclick = ()=> d.classList.toggle('active');
+    grid.appendChild(d);
+  }
+  // 滚动动画列表
+  const mw = document.getElementById('marqueeWrap');
+  for (let i=0;i<40;i++){
+    const d = document.createElement('div');
+    d.className='item';
+    d.textContent='滚动项 #'+(i+1)+'（背景不断左移）';
+    mw.appendChild(d);
+  }
+  // 动画暂停切换
+  let paused = false;
+  document.getElementById('animToggle').onclick = ()=>{
+    paused = !paused;
+    document.querySelectorAll('#animStage .anim-ball').forEach(b=> b.style.animationPlayState = paused?'paused':'running');
+  };
+  document.getElementById('animAdd').onclick = ()=>{
+    const stage = document.getElementById('animStage');
+    for (let i=0;i<20;i++){
+      const b = document.createElement('div');
+      b.className='anim-ball ' + (i%2?'b2':'b3');
+      b.style.top = (10+Math.random()*230)+'px';
+      b.style.width = b.style.height = (20+Math.random()*30)+'px';
+      b.style.animationDuration = (1+Math.random()*3)+'s';
+      stage.appendChild(b);
+    }
+  };
+})();
+
+/* ======================== 大图 模块 ======================== */
+(function(){
+  const stage = document.getElementById('imgStage');
+  const img = document.getElementById('bigImg');
+  const info = document.getElementById('imgInfo');
+
+  // 用 SVG data-url 生成大图（避免外部请求）
+  function bigSvgDataUrl(w, h, hue){
+    const svg = `<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="hsl(${hue},80%,55%)"/>
+      <stop offset="1" stop-color="hsl(${(hue+120)%360},80%,25%)"/>
+    </linearGradient>
+    <pattern id="p" width="80" height="80" patternUnits="userSpaceOnUse">
+      <circle cx="40" cy="40" r="22" fill="rgba(255,255,255,.18)"/>
+      <rect x="0" y="0" width="80" height="80" fill="none" stroke="rgba(255,255,255,.08)"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#g)"/>
+  <rect width="100%" height="100%" fill="url(#p)"/>
+  <text x="50%" y="50%" font-size="200" fill="rgba(255,255,255,.75)" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-weight="bold">${w} x ${h}</text>
+</svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  const BIG_IMAGES = [
+    { label:'4000x3000',  url: bigSvgDataUrl(4000,3000,  0) },
+    { label:'6000x4000',  url: bigSvgDataUrl(6000,4000, 60) },
+    { label:'8000x6000',  url: bigSvgDataUrl(8000,6000,180) },
+    { label:'3000x3000',  url: bigSvgDataUrl(3000,3000,220) },
+    { label:'10000x2000', url: bigSvgDataUrl(10000,2000,300) },
+  ];
+  const thumbs = document.getElementById('thumbGrid');
+  BIG_IMAGES.forEach((it, idx)=>{
+    const t = document.createElement('img');
+    t.src = it.url; t.title = it.label; t.dataset.idx = idx;
+    if (idx===0) t.classList.add('active');
+    t.onclick = ()=>{
+      document.querySelectorAll('.thumb-grid img').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      loadImage(idx);
+    };
+    thumbs.appendChild(t);
+  });
+
+  let currentIdx = 0, scale=1, tx=0, ty=0;
+  function apply(){ img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; }
+  function loadImage(idx){
+    currentIdx = idx;
+    img.onload = ()=>{
+      info.textContent = `尺寸: ${img.naturalWidth} x ${img.naturalHeight}`;
+      // 自适应初始缩放
+      scale = Math.min(stage.clientWidth / img.naturalWidth, stage.clientHeight / img.naturalHeight);
+      tx = (stage.clientWidth - img.naturalWidth*scale)/2;
+      ty = (stage.clientHeight - img.naturalHeight*scale)/2;
+      apply();
+    };
+    img.src = BIG_IMAGES[idx].url;
+  }
+  document.getElementById('imgLoad').onclick = ()=> loadImage(currentIdx);
+  document.getElementById('imgReset').onclick = ()=> loadImage(currentIdx);
+
+  // 缩放
+  stage.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const rect = stage.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(0.05, Math.min(10, scale*factor));
+    // 以鼠标为中心缩放
+    tx = mx - (mx - tx) * (newScale/scale);
+    ty = my - (my - ty) * (newScale/scale);
+    scale = newScale;
+    apply();
+  }, { passive:false });
+
+  // 拖动
+  let dragging=false, lx=0, ly=0;
+  stage.addEventListener('mousedown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; stage.classList.add('dragging'); });
+  window.addEventListener('mousemove', e=>{ if(!dragging) return; tx+=e.clientX-lx; ty+=e.clientY-ly; lx=e.clientX; ly=e.clientY; apply(); });
+  window.addEventListener('mouseup', ()=>{ dragging=false; stage.classList.remove('dragging'); });
+
+  // 连续打开关闭 10 次（模拟内存回落）
+  document.getElementById('imgOpenClose10').onclick = async ()=>{
+    for (let i=0;i<10;i++){
+      loadImage(i % BIG_IMAGES.length);
+      await new Promise(r=>setTimeout(r, 500));
+      img.removeAttribute('src');
+      await new Promise(r=>setTimeout(r, 300));
+    }
+    loadImage(0);
+    alert('已连续打开关闭 10 次大图页面。可通过任务管理器 / Performance 面板观察内存回落情况。');
+  };
+
+  loadImage(0);
+})();
+
+/* ======================== 高 DPI 模块 ======================== */
+(function(){
+  // Low (不处理)
+  const lo = document.getElementById('dpiCanvasLow');
+  const glo = lo.getContext('2d');
+  function drawLow(){
+    glo.fillStyle='#fff'; glo.fillRect(0,0,lo.width,lo.height);
+    glo.strokeStyle='#333'; glo.lineWidth=1;
+    for (let x=0;x<lo.width;x+=10){ glo.beginPath(); glo.moveTo(x+.5,0); glo.lineTo(x+.5,lo.height); glo.stroke(); }
+    glo.fillStyle='#000'; glo.font='14px Arial'; glo.fillText('低 DPI (未缩放) ' + lo.width+'x'+lo.height, 10, 20);
+  }
+  drawLow();
+
+  // Hi
+  const hi = document.getElementById('dpiCanvasHi');
+  function setupHiDPI(c, cssW, cssH){
+    c.style.width = cssW+'px'; c.style.height = cssH+'px';
+    c.width = cssW*dpr; c.height = cssH*dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    return g;
+  }
+  const ghi = setupHiDPI(hi, 300, 180);
+  (function draw(){
+    ghi.fillStyle='#fff'; ghi.fillRect(0,0,300,180);
+    ghi.strokeStyle='#333'; ghi.lineWidth=1;
+    for (let x=0;x<300;x+=10){ ghi.beginPath(); ghi.moveTo(x+.5,0); ghi.lineTo(x+.5,180); ghi.stroke(); }
+    ghi.fillStyle='#000'; ghi.font='14px Arial'; ghi.fillText('高 DPI (按 DPR='+dpr+' 缩放)', 10, 20);
+  })();
+
+  // WebGL DPR
+  const wgl = document.getElementById('dpiGL');
+  wgl.style.width='300px'; wgl.style.height='180px';
+  wgl.width = 300*dpr; wgl.height = 180*dpr;
+  const gl = wgl.getContext('webgl');
+  if (gl){
+    gl.viewport(0,0,wgl.width,wgl.height);
+    gl.clearColor(0.95,0.95,0.95,1); gl.clear(gl.COLOR_BUFFER_BIT);
+    // 用 2d 叠加文字说明
+    // (WebGL 本身不绘字；此处仅演示 drawingBuffer 像素=cssSize*DPR)
+  }
+})();
+
+applyHW();
+</script>
+</body>
+</html>
