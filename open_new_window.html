@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>新窗口打开链接测试</title>
+<style>
+  body {
+    margin: 0; font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #f5f7fa; color: #222;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+  }
+  .card {
+    background: #fff; border: 1px solid #dcdfe6; border-radius: 8px;
+    padding: 30px 40px; box-shadow: 0 4px 20px rgba(0,0,0,.08);
+    max-width: 520px;
+  }
+  h1 { margin: 0 0 16px 0; font-size: 18px; }
+  p { font-size: 14px; color: #555; line-height: 1.7; }
+  .target-url {
+    display: inline-block; padding: 2px 8px; background: #f0f6ff;
+    border-radius: 3px; font-family: Consolas, monospace; font-size: 13px;
+    color: #1a73e8;
+  }
+  .link-row {
+    margin: 20px 0; padding: 16px; background: #fafafa;
+    border-radius: 6px; border: 1px dashed #ccc;
+  }
+  .link-row a {
+    color: #1a73e8; font-size: 16px; text-decoration: none;
+    border-bottom: 1px solid #1a73e8; padding-bottom: 1px;
+  }
+  .link-row a:hover { color: #0b57d0; border-color: #0b57d0; }
+  .note { font-size: 12px; color: #888; margin-top: 20px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>点击下方链接，将在新页面打开</h1>
+    <p>目标 URL：<span class="target-url">https://www.bbs.com/en/home</span></p>
+
+    <div class="link-row">
+      <a href="https://www.bbs.com/en/home" target="_blank" rel="noopener noreferrer">
+        点击打开 https://www.bbs.com/en/home
+      </a>
+    </div>
+
+    <p class="note">
+      实现方式：<code>&lt;a&gt;</code> 标签带 <code>target="_blank"</code>，浏览器会在新标签页/新窗口打开。
+    </p>
+  </div>
+</body>
+</html>
